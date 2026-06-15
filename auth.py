@@ -114,91 +114,91 @@ def init_auth_db():
 
         # ---- 5 张核心表 ----
 
-    # 用户表：存储所有可登录的账号
-    c.execute("""CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,        -- 登录名，唯一
-        password_hash TEXT,                   -- bcrypt 密码哈希（LDAP 用户可为空）
-        display_name TEXT DEFAULT '',         -- 显示名称
-        auth_type TEXT DEFAULT 'local',       -- 'local'=本地账号, 'ldap'=域账号
-        ldap_dn TEXT,                         -- LDAP 用户的专有名称
-        is_active INTEGER DEFAULT 1,          -- 1=启用, 0=禁用
-        last_login TEXT,                      -- 最后登录时间
-        created_at TEXT NOT NULL              -- 创建时间
-    )""")
+        # 用户表：存储所有可登录的账号
+        c.execute("""CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,        -- 登录名，唯一
+            password_hash TEXT,                   -- bcrypt 密码哈希（LDAP 用户可为空）
+            display_name TEXT DEFAULT '',         -- 显示名称
+            auth_type TEXT DEFAULT 'local',       -- 'local'=本地账号, 'ldap'=域账号
+            ldap_dn TEXT,                         -- LDAP 用户的专有名称
+            is_active INTEGER DEFAULT 1,          -- 1=启用, 0=禁用
+            last_login TEXT,                      -- 最后登录时间
+            created_at TEXT NOT NULL              -- 创建时间
+        )""")
 
-    # 角色表：预置 3 个 + 管理员可自定义
-    c.execute("""CREATE TABLE IF NOT EXISTS roles (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE NOT NULL,            -- 角色名称，唯一
-        description TEXT DEFAULT '',          -- 角色说明
-        is_system INTEGER DEFAULT 0,          -- 1=系统预置（不可删除）, 0=自定义
-        created_at TEXT NOT NULL
-    )""")
+        # 角色表：预置 3 个 + 管理员可自定义
+        c.execute("""CREATE TABLE IF NOT EXISTS roles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,            -- 角色名称，唯一
+            description TEXT DEFAULT '',          -- 角色说明
+            is_system INTEGER DEFAULT 0,          -- 1=系统预置（不可删除）, 0=自定义
+            created_at TEXT NOT NULL
+        )""")
 
-    # 权限表：定义所有可用的权限项
-    c.execute("""CREATE TABLE IF NOT EXISTS permissions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        code TEXT UNIQUE NOT NULL,            -- 权限码，如 "dashboard:view"
-        name TEXT NOT NULL,                   -- 中文名，如 "查看仪表板"
-        description TEXT DEFAULT ''           -- 详细说明
-    )""")
+        # 权限表：定义所有可用的权限项
+        c.execute("""CREATE TABLE IF NOT EXISTS permissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE NOT NULL,            -- 权限码，如 "dashboard:view"
+            name TEXT NOT NULL,                   -- 中文名，如 "查看仪表板"
+            description TEXT DEFAULT ''           -- 详细说明
+        )""")
 
-    # 用户-角色关联表（多对多）
-    c.execute("""CREATE TABLE IF NOT EXISTS user_roles (
-        user_id INTEGER NOT NULL,
-        role_id INTEGER NOT NULL,
-        PRIMARY KEY (user_id, role_id),
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
-    )""")
+        # 用户-角色关联表（多对多）
+        c.execute("""CREATE TABLE IF NOT EXISTS user_roles (
+            user_id INTEGER NOT NULL,
+            role_id INTEGER NOT NULL,
+            PRIMARY KEY (user_id, role_id),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+        )""")
 
-    # 角色-权限关联表（多对多）
-    c.execute("""CREATE TABLE IF NOT EXISTS role_permissions (
-        role_id INTEGER NOT NULL,
-        permission_id INTEGER NOT NULL,
-        PRIMARY KEY (role_id, permission_id),
-        FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
-        FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
-    )""")
+        # 角色-权限关联表（多对多）
+        c.execute("""CREATE TABLE IF NOT EXISTS role_permissions (
+            role_id INTEGER NOT NULL,
+            permission_id INTEGER NOT NULL,
+            PRIMARY KEY (role_id, permission_id),
+            FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+            FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
+        )""")
 
-    # ---- 写入预置权限 ----
-    for code, name, desc in PRESET_PERMISSIONS:
-        c.execute("INSERT OR IGNORE INTO permissions (code, name, description) VALUES (?, ?, ?)",
-                  (code, name, desc))
+        # ---- 写入预置权限 ----
+        for code, name, desc in PRESET_PERMISSIONS:
+            c.execute("INSERT OR IGNORE INTO permissions (code, name, description) VALUES (?, ?, ?)",
+                      (code, name, desc))
 
-    # 查询所有权限的 code → id 映射，供后续关联使用
-    perm_map = {}
-    c.execute("SELECT id, code FROM permissions")
-    for row in c.fetchall():
-        perm_map[row["code"]] = row["id"]
+        # 查询所有权限的 code → id 映射，供后续关联使用
+        perm_map = {}
+        c.execute("SELECT id, code FROM permissions")
+        for row in c.fetchall():
+            perm_map[row["code"]] = row["id"]
 
-    # ---- 写入预置角色并关联权限 ----
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    for role_name, perm_codes in PRESET_ROLES.items():
-        c.execute("INSERT OR IGNORE INTO roles (name, description, is_system, created_at) VALUES (?, ?, 1, ?)",
-                  (role_name, role_name, now))
-        c.execute("SELECT id FROM roles WHERE name = ?", (role_name,))
-        role_id = c.fetchone()["id"]
-        for code in perm_codes:
-            if code in perm_map:
-                c.execute("INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)",
-                          (role_id, perm_map[code]))
+        # ---- 写入预置角色并关联权限 ----
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        for role_name, perm_codes in PRESET_ROLES.items():
+            c.execute("INSERT OR IGNORE INTO roles (name, description, is_system, created_at) VALUES (?, ?, 1, ?)",
+                      (role_name, role_name, now))
+            c.execute("SELECT id FROM roles WHERE name = ?", (role_name,))
+            role_id = c.fetchone()["id"]
+            for code in perm_codes:
+                if code in perm_map:
+                    c.execute("INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)",
+                              (role_id, perm_map[code]))
 
-    # ---- 默认管理员账号 admin / admin123 ----
-    # 仅当 admin 用户不存在时才创建（首次启动）
-    c.execute("SELECT id FROM users WHERE username = 'admin'")
-    if not c.fetchone():
-        # bcrypt.hashpw 自动生成随机 salt，每次结果不同
-        pw_hash = bcrypt.hashpw("admin123".encode(), bcrypt.gensalt()).decode()
-        c.execute("""INSERT INTO users (username, password_hash, display_name, auth_type, created_at)
-                     VALUES ('admin', ?, '管理员', 'local', ?)""", (pw_hash, now))
-        # 赋予超级管理员角色
+        # ---- 默认管理员账号 admin / admin123 ----
+        # 仅当 admin 用户不存在时才创建（首次启动）
         c.execute("SELECT id FROM users WHERE username = 'admin'")
-        uid = c.fetchone()["id"]
-        c.execute("SELECT id FROM roles WHERE name = '超级管理员'")
-        rid = c.fetchone()["id"]
-        c.execute("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)", (uid, rid))
+        if not c.fetchone():
+            # bcrypt.hashpw 自动生成随机 salt，每次结果不同
+            pw_hash = bcrypt.hashpw("admin123".encode(), bcrypt.gensalt()).decode()
+            c.execute("""INSERT INTO users (username, password_hash, display_name, auth_type, created_at)
+                         VALUES ('admin', ?, '管理员', 'local', ?)""", (pw_hash, now))
+            # 赋予超级管理员角色
+            c.execute("SELECT id FROM users WHERE username = 'admin'")
+            uid = c.fetchone()["id"]
+            c.execute("SELECT id FROM roles WHERE name = '超级管理员'")
+            rid = c.fetchone()["id"]
+            c.execute("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)", (uid, rid))
 
 
 # ============================================================

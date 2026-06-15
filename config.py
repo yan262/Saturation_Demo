@@ -10,14 +10,25 @@
 """
 
 import os
+import sys
+
+# 确定应用根目录：
+#   frozen 模式（PyInstaller exe）→ exe 所在目录（用户可放 .env 在旁边）
+#   非 frozen 模式（python server.py）→ 当前文件所在目录
+if getattr(sys, 'frozen', False):
+    _APP_DIR = os.path.dirname(sys.executable)
+else:
+    _APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 尝试加载 .env 文件（python-dotenv 为可选依赖）
 try:
     from dotenv import load_dotenv
-    load_dotenv(override=False)
+    # python-dotenv 默认从 CWD 查找，这里显式指定路径
+    _dotenv_path = os.path.join(_APP_DIR, ".env")
+    load_dotenv(_dotenv_path, override=False)
 except ImportError:
     # python-dotenv 未安装时，手动解析 .env 文件
-    _env_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    _env_file = os.path.join(_APP_DIR, ".env")
     if os.path.isfile(_env_file):
         with open(_env_file, "r", encoding="utf-8") as _f:
             for _line in _f:

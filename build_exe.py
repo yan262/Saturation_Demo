@@ -84,7 +84,7 @@ def build():
             'echo   Starting server ...\r\n'
             'echo   DO NOT close this window.\r\n'
             'echo   Browser: http://localhost:8000\r\n'
-            'echo   Login: admin / admin123\r\n'
+            'echo\r\n'
             'echo ============================================================\r\n'
             'echo.\r\n'
             '"SaturationMonitor.exe"\r\n'
@@ -100,15 +100,29 @@ def build():
     if result.returncode == 0:
         exe_path = os.path.join(BASE_DIR, "dist", "SaturationMonitor.exe")
         size_mb = os.path.getsize(exe_path) / (1024 * 1024)
+
+        # 复制 .env 到 dist（如果存在），确保 exe 能读取配置
+        env_src = os.path.join(BASE_DIR, ".env")
+        env_dst = os.path.join(BASE_DIR, "dist", ".env")
+        if os.path.exists(env_src):
+            shutil.copy2(env_src, env_dst)
+            has_env = True
+        else:
+            has_env = False
+
         print()
         print("=" * 60)
         print("  [OK] Build success!")
         print(f"  Output: {exe_path}")
         print(f"  Size: {size_mb:.1f} MB")
         print()
-        print("  Distribute: Send these TWO files to users:")
+        print("  Distribute: Send these files to users:")
         print("    1. SaturationMonitor.exe")
         print("    2. 启动.bat")
+        if has_env:
+            print("    3. .env  (配置文件，已自动复制)")
+        else:
+            print("    3. .env  (需手动创建，参考 .env.example)")
         print()
         print("  User: Double-click 启动.bat -> login with admin/admin123")
         print("=" * 60)
